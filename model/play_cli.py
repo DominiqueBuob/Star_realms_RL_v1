@@ -1,21 +1,28 @@
 from __future__ import annotations
 
-import random
-
 from data.colony_wars_cards import CARDS
 from data.legal_actions import get_legal_actions
-from model.random_bot import choose_random_action
 from data.rules import apply_action, get_card_def
 from data.setup import create_game
-
-
-def card_name(state, card_id: int) -> str:
-    return state.cards[card_id].card_def_id
+from model.bot_registry import available_bots, build_bot
 
 
 def pretty_card(state, card_registry, card_id: int) -> str:
     cdef = get_card_def(state, card_registry, card_id)
     return f"{card_id}:{cdef.name}"
+
+
+def format_action(action: dict, state, card_registry) -> str:
+    t = action["type"]
+
+    if t in {"play_card", "use_scrap_ability", "buy_trade_row_card", "attack_base", "choose_card"}:
+        cid = action["card_id"]
+        return f"{t} -> {pretty_card(state, card_registry, cid)}"
+
+    if t == "choose_option":
+        return f"{t} -> option {action['option_index']}"
+
+    return t
 
 
 def print_state(state, card_registry) -> None:
@@ -27,9 +34,8 @@ def print_state(state, card_registry) -> None:
     print(f"Turn {state.turn_number} | Active player: {state.active_player} | Phase: {state.turn.phase}")
     print(f"Trade: {state.turn.trade} | Combat: {state.turn.combat}")
     print(f"Your authority: {me.authority} | Opp authority: {opp.authority}")
-    print()
 
-    print("Your hand:")
+    print("\nYour hand:")
     for cid in me.hand:
         print(f"  {pretty_card(state, card_registry, cid)}")
 
@@ -60,19 +66,6 @@ def print_actions(actions, state, card_registry) -> None:
         print(f"  [{i}] {format_action(action, state, card_registry)}")
 
 
-def format_action(action: dict, state, card_registry) -> str:
-    t = action["type"]
-
-    if t in {"play_card", "use_scrap_ability", "buy_trade_row_card", "attack_base", "choose_card"}:
-        cid = action["card_id"]
-        return f"{t} -> {pretty_card(state, card_registry, cid)}"
-
-    if t == "choose_option":
-        return f"{t} -> option {action['option_index']}"
-
-    return t
-
-
 def parse_human_action(actions, raw: str) -> dict:
     idx = int(raw.strip())
     if idx < 0 or idx >= len(actions):
@@ -80,12 +73,30 @@ def parse_human_action(actions, raw: str) -> dict:
     return actions[idx]
 
 
-def run_human_vs_random(seed: int = 1, human_player: int = 0) -> None:
+def ask_bot_name() -> str:
+    bots = available_bots()
+    print("Available bots:")
+    for i, name in enumerate(bots):
+        print(f"  [{i}] {name}")
+
+    raw = input("Choose opponent bot: ").strip()
+    if raw.isdigit():
+        idx = int(raw)
+        if idx < 0 or idx >= len(bots):
+            raise ValueError("Bot index out of range.")
+        return bots[idx]
+
+    if raw.lower() in bots:
+        return raw.lower()
+
+    raise ValueError(f"Unknown bot choice: {raw}")
+
+
+def run_human_vs_bot(seed: int = 1, human_player: int = 0, bot_name: str = "random") -> None:
     state = create_game(CARDS, seed=seed)
-    rng = random.Random(seed + 999)
+    bot = build_bot(bot_name, seed=seed + 999)
 
     while state.winner is None:
-        # If cleanup is the only action, auto-run it
         actions = get_legal_actions(state, CARDS)
         if len(actions) == 1 and actions[0]["type"] == "cleanup_and_pass_turn":
             apply_action(state, CARDS, actions[0]["type"])
@@ -105,8 +116,8 @@ def run_human_vs_random(seed: int = 1, human_player: int = 0) -> None:
                 except Exception as e:
                     print(f"Invalid input/action: {e}")
         else:
-            action = choose_random_action(state, CARDS, get_legal_actions, rng=rng)
-            print(f"\nBot chooses: {format_action(action, state, CARDS)}")
+            action = bot.choose_action(state, CARDS)
+            print(f"\nBot ({bot.name}) chooses: {format_action(action, state, CARDS)}")
             apply_action(state, CARDS, action["type"], **{k: v for k, v in action.items() if k != "type"})
 
     print()
@@ -115,4 +126,5 @@ def run_human_vs_random(seed: int = 1, human_player: int = 0) -> None:
 
 
 if __name__ == "__main__":
-    run_human_vs_random(seed=1, human_player=0)
+    bot_name = ask_bot_name()
+    run_human_vs_bot(seed=1, human_player=0, bot_name=bot_name)

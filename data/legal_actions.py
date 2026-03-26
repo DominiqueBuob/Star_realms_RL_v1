@@ -6,6 +6,7 @@ from data.state import GameState
 from data.rules import current_player, opponent_player, get_card_def, _effective_card_def
 from typing import Mapping
 
+
 def _has_scrap_ability(card_def: CardDef) -> bool:
     return any(ability.trigger == Trigger.ON_SCRAP_FROM_PLAY for ability in card_def.abilities)
 
@@ -29,7 +30,7 @@ def _pending_actions(state: GameState) -> list[dict]:
     return actions
 
 
-def _action_phase_actions(state: GameState, card_registry: dict[str, CardDef]) -> list[dict]:
+def _action_phase_actions(state: GameState, card_registry: Mapping[str, CardDef]) -> list[dict]:
     actions: list[dict] = []
     player = current_player(state)
 
@@ -45,7 +46,7 @@ def _action_phase_actions(state: GameState, card_registry: dict[str, CardDef]) -
     return actions
 
 
-def _buy_phase_actions(state: GameState, card_registry: dict[str, CardDef]) -> list[dict]:
+def _buy_phase_actions(state: GameState, card_registry: Mapping[str, CardDef]) -> list[dict]:
     actions: list[dict] = []
 
     for card_id in state.trade_row:
@@ -60,7 +61,7 @@ def _buy_phase_actions(state: GameState, card_registry: dict[str, CardDef]) -> l
     return actions
 
 
-def _opponent_outposts(state: GameState, card_registry: dict[str, CardDef]) -> list[int]:
+def _opponent_outposts(state: GameState, card_registry: Mapping[str, CardDef]) -> list[int]:
     outposts: list[int] = []
     for card_id in opponent_player(state).bases_in_play:
         card_def = _effective_card_def(state, card_registry, card_id)
@@ -69,7 +70,7 @@ def _opponent_outposts(state: GameState, card_registry: dict[str, CardDef]) -> l
     return outposts
 
 
-def _attack_phase_actions(state: GameState, card_registry: dict[str, CardDef]) -> list[dict]:
+def _attack_phase_actions(state: GameState, card_registry: Mapping[str, CardDef]) -> list[dict]:
     actions: list[dict] = []
     if state.turn.combat > 0:
         outposts = _opponent_outposts(state, card_registry)
@@ -88,7 +89,7 @@ def _attack_phase_actions(state: GameState, card_registry: dict[str, CardDef]) -
     return actions
 
 
-def get_legal_actions(state: GameState, card_registry: dict[str, CardDef]) -> list[dict]:
+def get_legal_actions(state: GameState, card_registry: Mapping[str, CardDef]) -> list[dict]:
     if state.winner is not None:
         return []
 

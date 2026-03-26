@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from state import GameState, PlayerState
-from turn_state import TurnState
-from enums import Phase
+from data.state import GameState, PlayerState
+from data.turn_state import TurnState
+from data.enums import Phase
+from typing import Mapping
+from data.card_defs import CardDef
+
 
 
 STARTING_AUTHORITY = 50
@@ -35,7 +38,7 @@ def _draw_to_hand(state: GameState, player_idx: int, n: int) -> None:
         player.hand.append(card_id)
 
 
-def _build_trade_deck(state: GameState, card_registry: dict[str, object]) -> list[int]:
+def _build_trade_deck(state: GameState, card_registry: Mapping[str, CardDef]) -> list[int]:
     deck: list[int] = []
     for card_def_id, card_def in card_registry.items():
         if card_def_id in {"scout", "viper", "explorer"}:
@@ -53,7 +56,7 @@ def _fill_trade_row(state: GameState) -> None:
         state.trade_row.append(state.trade_deck.pop())
 
 
-def create_game(card_registry: dict[str, object], seed: int | None = None) -> GameState:
+def create_game(card_registry: Mapping[str, CardDef], seed: int | None = None) -> GameState:
     state = GameState()
     if seed is not None:
         state.rng.seed(seed)

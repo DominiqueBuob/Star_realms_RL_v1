@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from enums import Faction, CardType
+from data.enums import Faction, CardType
 
 
 class Condition:

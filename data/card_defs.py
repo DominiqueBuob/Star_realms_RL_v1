@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
-from enums import CardType, Faction, Trigger
+from data.enums import CardType, Faction, Trigger
 
 @dataclass(frozen=True)
 class AbilityDef:

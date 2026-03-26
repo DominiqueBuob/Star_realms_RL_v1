@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import random
 
-from turn_state import TurnState
-from pending import PendingDecision
+from data.turn_state import TurnState
+from data.pending import PendingDecision
 
 
 @dataclass

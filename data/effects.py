@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Tuple
 
-from enums import AcquireDestination, CardType, Faction
+from data.enums import AcquireDestination, CardType, Faction
 
 
 class Effect:

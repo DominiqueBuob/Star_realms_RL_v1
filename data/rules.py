@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from typing import Mapping
 from dataclasses import replace
 
-from card_defs import CardDef
-from conditions import AllyCondition
-from effects import (
+from data.card_defs import CardDef
+from data.conditions import AllyCondition
+from data.effects import (
     AcquireFree,
     ChooseOne,
     # CopyBaseUntilEndOfTurn,
@@ -34,10 +35,11 @@ from effects import (
     Sequence,
     SetNextAcquireDestination,
 )
-from enums import AcquireDestination, CardType, DecisionType, Phase, Trigger
-from pending import PendingDecision
-from state import GameState
-from turn_state import PendingAcquireModifier, TurnState
+from data.enums import AcquireDestination, CardType, DecisionType, Phase, Trigger
+from data.pending import PendingDecision
+from data.state import GameState
+from data.turn_state import PendingAcquireModifier, TurnState
+
 
 
 def current_player(state: GameState):
@@ -48,7 +50,7 @@ def opponent_player(state: GameState):
     return state.players[1 - state.active_player]
 
 
-def get_card_def(state: GameState, card_registry: dict[str, CardDef], instance_id: int) -> CardDef:
+def get_card_def(state: GameState, card_registry: Mapping[str, CardDef], instance_id: int) -> CardDef:
     return card_registry[state.cards[instance_id].card_def_id]
 
 
@@ -65,29 +67,8 @@ def _remove_from_list(lst: list[int], instance_id: int) -> None:
     if instance_id in lst:
         lst.remove(instance_id)
 
-
-def _effective_card_def(state: GameState, card_registry: dict[str, CardDef], instance_id: int) -> CardDef:
-    base_def = get_card_def(state, card_registry, instance_id)
-
-    if instance_id in state.turn.copied_ship_targets:
-        target_id = state.turn.copied_ship_targets[instance_id]
-        target_def = _effective_card_def(state, card_registry, target_id)
-        factions = tuple(dict.fromkeys(base_def.factions + target_def.factions))
-        return replace(base_def, factions=factions, abilities=target_def.abilities)
-
-    if instance_id in state.turn.copied_base_targets:
-        target_id = state.turn.copied_base_targets[instance_id]
-        target_def = _effective_card_def(state, card_registry, target_id)
-        factions = tuple(dict.fromkeys(base_def.factions + target_def.factions))
-        return replace(
-            base_def,
-            factions=factions,
-            abilities=target_def.abilities,
-            defense=target_def.defense,
-            is_outpost=target_def.is_outpost,
-        )
-
-    return base_def
+def _effective_card_def(state: GameState, card_registry: Mapping[str, CardDef], instance_id: int) -> CardDef:
+    return get_card_def(state, card_registry, instance_id)
 
 
 def _card_counts_as_all_factions(card_def: CardDef) -> bool:
@@ -99,7 +80,7 @@ def _card_counts_as_all_factions(card_def: CardDef) -> bool:
     return False
 
 
-def _all_faction_bonus_in_play(state: GameState, card_registry: dict[str, CardDef]) -> int:
+def _all_faction_bonus_in_play(state: GameState, card_registry: Mapping[str, CardDef]) -> int:
     total = 0
     for card_id in current_player(state).bases_in_play + current_player(state).ships_in_play:
         card_def = _effective_card_def(state, card_registry, card_id)
@@ -108,7 +89,7 @@ def _all_faction_bonus_in_play(state: GameState, card_registry: dict[str, CardDe
     return total
 
 
-def _evaluate_condition(state: GameState, card_registry: dict[str, CardDef], condition) -> bool:
+def _evaluate_condition(state: GameState, card_registry: Mapping[str, CardDef], condition) -> bool:
     if condition is None:
         return True
 
@@ -156,7 +137,7 @@ def _start_turn(state: GameState) -> None:
         player.forced_discards_next_turn = 0
 
 
-def _apply_ship_play_passives(state: GameState, card_registry: dict[str, CardDef], played_ship_id: int) -> None:
+def _apply_ship_play_passives(state: GameState, card_registry: Mapping[str, CardDef], played_ship_id: int) -> None:
     played_ship_def = _effective_card_def(state, card_registry, played_ship_id)
     for base_id in list(current_player(state).bases_in_play):
         base_def = _effective_card_def(state, card_registry, base_id)
@@ -169,7 +150,7 @@ def _apply_ship_play_passives(state: GameState, card_registry: dict[str, CardDef
                         state.turn.combat += effect.amount
 
 
-def _resolve_on_play_abilities(state: GameState, card_registry: dict[str, CardDef], instance_id: int) -> None:
+def _resolve_on_play_abilities(state: GameState, card_registry: Mapping[str, CardDef], instance_id: int) -> None:
     card_def = _effective_card_def(state, card_registry, instance_id)
     for ability in card_def.abilities:
         if ability.trigger != Trigger.ON_PLAY:
@@ -180,7 +161,7 @@ def _resolve_on_play_abilities(state: GameState, card_registry: dict[str, CardDe
             _apply_effect(state, card_registry, instance_id, effect)
 
 
-def _resolve_on_acquire_abilities(state: GameState, card_registry: dict[str, CardDef], instance_id: int) -> None:
+def _resolve_on_acquire_abilities(state: GameState, card_registry: Mapping[str, CardDef], instance_id: int) -> None:
     card_def = _effective_card_def(state, card_registry, instance_id)
     for ability in card_def.abilities:
         if ability.trigger != Trigger.ON_ACQUIRE:
@@ -191,7 +172,7 @@ def _resolve_on_acquire_abilities(state: GameState, card_registry: dict[str, Car
             _apply_effect(state, card_registry, instance_id, effect)
 
 
-def _apply_effect(state: GameState, card_registry: dict[str, CardDef], source_id: int | None, effect) -> None:
+def _apply_effect(state: GameState, card_registry: Mapping[str, CardDef], source_id: int | None, effect) -> None:
     if isinstance(effect, GainTrade):
         state.turn.trade += effect.amount
         return
@@ -325,30 +306,30 @@ def _apply_effect(state: GameState, card_registry: dict[str, CardDef], source_id
     if isinstance(effect, CountsAsAllFactions):
         return
 
-    if isinstance(effect, CopyPlayedShip):
-        valid = [cid for cid in state.turn.ships_played_this_turn if cid != source_id]
-        state.pending.append(
-            PendingDecision(
-                decision_type=DecisionType.CHOOSE_CARD,
-                player=state.active_player,
-                source_card_id=source_id,
-                payload={"kind": "copy_played_ship", "valid_card_ids": valid, "optional": False},
-            )
-        )
-        return
+    # if isinstance(effect, CopyPlayedShip):
+    #     valid = [cid for cid in state.turn.ships_played_this_turn if cid != source_id]
+    #     state.pending.append(
+    #         PendingDecision(
+    #             decision_type=DecisionType.CHOOSE_CARD,
+    #             player=state.active_player,
+    #             source_card_id=source_id,
+    #             payload={"kind": "copy_played_ship", "valid_card_ids": valid, "optional": False},
+    #         )
+    #     )
+    #     return
 
-    if isinstance(effect, CopyBaseUntilEndOfTurn):
-        valid = current_player(state).bases_in_play + opponent_player(state).bases_in_play
-        valid = [cid for cid in valid if cid != source_id]
-        state.pending.append(
-            PendingDecision(
-                decision_type=DecisionType.CHOOSE_TARGET,
-                player=state.active_player,
-                source_card_id=source_id,
-                payload={"kind": "copy_base_until_end", "valid_card_ids": valid, "optional": False},
-            )
-        )
-        return
+    # if isinstance(effect, CopyBaseUntilEndOfTurn):
+    #     valid = current_player(state).bases_in_play + opponent_player(state).bases_in_play
+    #     valid = [cid for cid in valid if cid != source_id]
+    #     state.pending.append(
+    #         PendingDecision(
+    #             decision_type=DecisionType.CHOOSE_TARGET,
+    #             player=state.active_player,
+    #             source_card_id=source_id,
+    #             payload={"kind": "copy_base_until_end", "valid_card_ids": valid, "optional": False},
+    #         )
+    #     )
+    #     return
 
     if isinstance(effect, OnPlayShipGainCombat):
         return
@@ -483,7 +464,7 @@ def _enqueue_choose_target_base(state: GameState, source_id: int | None, optiona
     )
 
 
-def _move_played_card(state: GameState, card_registry: dict[str, CardDef], card_id: int,  card_def: CardDef) -> None:
+def _move_played_card(state: GameState, card_registry: Mapping[str, CardDef], card_id: int,  card_def: CardDef) -> None:
     player = current_player(state)
     player.hand.remove(card_id)
 
@@ -505,7 +486,7 @@ def can_play_card(state: GameState, card_id: int) -> bool:
     return state.turn.phase == Phase.ACTION and card_id in current_player(state).hand and not state.pending
 
 
-def play_card(state: GameState, card_registry: dict[str, CardDef], card_id: int) -> None:
+def play_card(state: GameState, card_registry: Mapping[str, CardDef], card_id: int) -> None:
     if not can_play_card(state, card_id):
         raise ValueError("Card is not playable right now.")
     card_def = get_card_def(state, card_registry, card_id)
@@ -513,7 +494,7 @@ def play_card(state: GameState, card_registry: dict[str, CardDef], card_id: int)
     _resolve_on_play_abilities(state, card_registry, card_id)
 
 
-def _resolve_scrap_abilities(state: GameState, card_registry: dict[str, CardDef], card_id: int) -> None:
+def _resolve_scrap_abilities(state: GameState, card_registry: Mapping[str, CardDef], card_id: int) -> None:
     card_def = _effective_card_def(state, card_registry, card_id)
     for ability in card_def.abilities:
         if ability.trigger != Trigger.ON_SCRAP_FROM_PLAY:
@@ -524,7 +505,7 @@ def _resolve_scrap_abilities(state: GameState, card_registry: dict[str, CardDef]
             _apply_effect(state, card_registry, card_id, effect)
 
 
-def use_scrap_ability(state: GameState, card_registry: dict[str, CardDef], card_id: int) -> None:
+def use_scrap_ability(state: GameState, card_registry: Mapping[str, CardDef], card_id: int) -> None:
     if state.pending:
         raise ValueError("Cannot use scrap ability while a decision is pending.")
     player = current_player(state)
@@ -538,7 +519,7 @@ def use_scrap_ability(state: GameState, card_registry: dict[str, CardDef], card_
     _resolve_scrap_abilities(state, card_registry, card_id)
 
 
-def _apply_pending_choice(state: GameState, card_registry: dict[str, CardDef], action: str, **kwargs) -> None:
+def _apply_pending_choice(state: GameState, card_registry: Mapping[str, CardDef], action: str, **kwargs) -> None:
     decision = state.pending[0]
     kind = decision.payload["kind"]
 
@@ -546,7 +527,6 @@ def _apply_pending_choice(state: GameState, card_registry: dict[str, CardDef], a
         if not decision.payload.get("optional", False):
             raise ValueError("This decision is not optional.")
         state.pending.pop(0)
-        _continue_after_pending_resolution(state, card_registry, decision, None)
         return
 
     if decision.decision_type == DecisionType.CHOOSE_OPTION and action == "choose_option":
@@ -562,13 +542,12 @@ def _apply_pending_choice(state: GameState, card_registry: dict[str, CardDef], a
         if chosen_id not in decision.payload["valid_card_ids"]:
             raise ValueError("Invalid choice.")
         state.pending.pop(0)
-        _continue_after_pending_resolution(state, card_registry, decision, chosen_id)
+
         return
 
     raise ValueError("Invalid action for pending decision.")
 
-
-def _continue_after_pending_resolution(state: GameState, card_registry: dict[str, CardDef], decision: PendingDecision, chosen_id: int | None) -> None:
+def _continue_after_pending_resolution(state: GameState, card_registry: Mapping[str, CardDef], decision: PendingDecision, chosen_id: int | None) -> None:
     kind = decision.payload["kind"]
     player = current_player(state)
 
@@ -680,29 +659,6 @@ def _continue_after_pending_resolution(state: GameState, card_registry: dict[str
             _acquire_existing_card(state, card_registry, chosen_id, destination_override=decision.payload["destination"])
         return
 
-    if kind == "copy_played_ship":
-        state.turn.copied_ship_targets[decision.source_card_id] = chosen_id
-        copied_def = _effective_card_def(state, card_registry, decision.source_card_id)
-        target_def = _effective_card_def(state, card_registry, chosen_id)
-        extra_factions = tuple(f for f in target_def.factions if f not in copied_def.factions)
-        state.turn.register_factions(extra_factions)
-        for ability in target_def.abilities:
-            if ability.trigger != Trigger.ON_PLAY:
-                continue
-            if not _evaluate_condition(state, card_registry, ability.condition):
-                continue
-            for effect in ability.effects:
-                _apply_effect(state, card_registry, decision.source_card_id, effect)
-        return
-
-    if kind == "copy_base_until_end":
-        state.turn.copied_base_targets[decision.source_card_id] = chosen_id
-        target_def = _effective_card_def(state, card_registry, chosen_id)
-        current_def = get_card_def(state, card_registry, decision.source_card_id)
-        extra_factions = tuple(f for f in target_def.factions if f not in current_def.factions)
-        state.turn.register_factions(extra_factions)
-        return
-
     raise NotImplementedError(f"Unhandled pending kind: {kind}")
 
 
@@ -763,7 +719,7 @@ def _default_acquire_destination(state: GameState, card_def: CardDef) -> Acquire
     return AcquireDestination.DISCARD
 
 
-def _place_acquired_card(state: GameState, card_registry: dict[str, CardDef], card_id: int, destination: AcquireDestination) -> None:
+def _place_acquired_card(state: GameState, card_registry: Mapping[str, CardDef], card_id: int, destination: AcquireDestination) -> None:
     player = current_player(state)
     card_def = get_card_def(state, card_registry, card_id)
     if destination == AcquireDestination.DISCARD:
@@ -780,7 +736,7 @@ def _place_acquired_card(state: GameState, card_registry: dict[str, CardDef], ca
         raise ValueError("Unknown acquire destination.")
 
 
-def _acquire_existing_card(state: GameState, card_registry: dict[str, CardDef], card_id: int, destination_override: AcquireDestination | None = None) -> None:
+def _acquire_existing_card(state: GameState, card_registry: Mapping[str, CardDef], card_id: int, destination_override: AcquireDestination | None = None) -> None:
     if card_id in state.trade_row:
         state.trade_row.remove(card_id)
         _fill_trade_row(state)
@@ -790,7 +746,7 @@ def _acquire_existing_card(state: GameState, card_registry: dict[str, CardDef], 
     _resolve_on_acquire_abilities(state, card_registry, card_id)
 
 
-def buy_trade_row_card(state: GameState, card_registry: dict[str, CardDef], card_id: int) -> None:
+def buy_trade_row_card(state: GameState, card_registry: Mapping[str, CardDef], card_id: int) -> None:
     if state.turn.phase != Phase.BUY or state.pending:
         raise ValueError("Cannot buy right now.")
     if card_id not in state.trade_row:
@@ -802,7 +758,7 @@ def buy_trade_row_card(state: GameState, card_registry: dict[str, CardDef], card
     _acquire_existing_card(state, card_registry, card_id)
 
 
-def buy_explorer(state: GameState, card_registry: dict[str, CardDef]) -> None:
+def buy_explorer(state: GameState, card_registry: Mapping[str, CardDef]) -> None:
     if state.turn.phase != Phase.BUY or state.pending:
         raise ValueError("Cannot buy explorer right now.")
     if state.turn.trade < 2 or state.explorer_pile_count <= 0:
@@ -813,7 +769,7 @@ def buy_explorer(state: GameState, card_registry: dict[str, CardDef]) -> None:
     _acquire_existing_card(state, card_registry, explorer_id)
 
 
-def _opponent_outposts(state: GameState, card_registry: dict[str, CardDef]) -> list[int]:
+def _opponent_outposts(state: GameState, card_registry: Mapping[str, CardDef]) -> list[int]:
     result = []
     for card_id in opponent_player(state).bases_in_play:
         card_def = _effective_card_def(state, card_registry, card_id)
@@ -822,7 +778,7 @@ def _opponent_outposts(state: GameState, card_registry: dict[str, CardDef]) -> l
     return result
 
 
-def attack_player(state: GameState, card_registry: dict[str, CardDef], amount: int | None = None) -> None:
+def attack_player(state: GameState, card_registry: Mapping[str, CardDef], amount: int | None = None) -> None:
     if state.turn.phase != Phase.ATTACK or state.pending:
         raise ValueError("Cannot attack right now.")
     if _opponent_outposts(state, card_registry):
@@ -836,7 +792,7 @@ def attack_player(state: GameState, card_registry: dict[str, CardDef], amount: i
         state.winner = state.active_player
 
 
-def attack_base(state: GameState, card_registry: dict[str, CardDef], base_id: int) -> None:
+def attack_base(state: GameState, card_registry: Mapping[str, CardDef], base_id: int) -> None:
     if state.turn.phase != Phase.ATTACK or state.pending:
         raise ValueError("Cannot attack right now.")
     if base_id not in opponent_player(state).bases_in_play:
@@ -892,7 +848,7 @@ def cleanup_and_pass_turn(state: GameState) -> None:
     _start_turn(state)
 
 
-def apply_action(state: GameState, card_registry: dict[str, CardDef], action: str, **kwargs) -> None:
+def apply_action(state: GameState, card_registry: Mapping[str, CardDef], action: str, **kwargs) -> None:
 
     if state.pending:
         _apply_pending_choice(state, card_registry, action, **kwargs)

@@ -1,6 +1,6 @@
-from card_defs import CardDef, AbilityDef
-from enums import Faction, CardType, Trigger, AcquireDestination
-from effects import (
+from data.card_defs import CardDef, AbilityDef
+from data.enums import Faction, CardType, Trigger, AcquireDestination
+from data.effects import (
     AcquireFree,
     ChooseOne,
     CopyBaseUntilEndOfTurn,
@@ -30,7 +30,8 @@ from effects import (
     Sequence,
     SetNextAcquireDestination,
 )
-from conditions import AllyCondition
+from data.conditions import AllyCondition
+
 
 
 def play(*effects, condition=None):

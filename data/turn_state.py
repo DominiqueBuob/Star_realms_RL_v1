@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from enums import AcquireDestination, CardType, Faction, Phase
+from data.enums import AcquireDestination, CardType, Faction, Phase
 
 
 @dataclass

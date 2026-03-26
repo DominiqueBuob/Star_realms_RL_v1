@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class _BaseStrEnum(str, Enum):
     """String-valued enum base for easy serialization and comparisons."""
 

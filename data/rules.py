@@ -7,8 +7,8 @@ from conditions import AllyCondition
 from effects import (
     AcquireFree,
     ChooseOne,
-    CopyBaseUntilEndOfTurn,
-    CopyPlayedShip,
+    # CopyBaseUntilEndOfTurn,
+    # CopyPlayedShip,
     CountsAsAllFactions,
     DestroyTargetBase,
     DiscardThenDrawSameCount,
@@ -483,7 +483,7 @@ def _enqueue_choose_target_base(state: GameState, source_id: int | None, optiona
     )
 
 
-def _move_played_card(state: GameState, card_id: int, card_def: CardDef) -> None:
+def _move_played_card(state: GameState, card_registry: dict[str, CardDef], card_id: int,  card_def: CardDef) -> None:
     player = current_player(state)
     player.hand.remove(card_id)
 
@@ -498,7 +498,7 @@ def _move_played_card(state: GameState, card_id: int, card_def: CardDef) -> None
     state.turn.register_factions(card_def.factions)
 
     if card_def.card_type == CardType.SHIP:
-        _apply_ship_play_passives(state, CARD_REGISTRY_HOLDER["registry"], card_id)
+        _apply_ship_play_passives(state, card_registry, card_id)
 
 
 def can_play_card(state: GameState, card_id: int) -> bool:
@@ -508,9 +508,8 @@ def can_play_card(state: GameState, card_id: int) -> bool:
 def play_card(state: GameState, card_registry: dict[str, CardDef], card_id: int) -> None:
     if not can_play_card(state, card_id):
         raise ValueError("Card is not playable right now.")
-    CARD_REGISTRY_HOLDER["registry"] = card_registry
     card_def = get_card_def(state, card_registry, card_id)
-    _move_played_card(state, card_id, card_def)
+    _move_played_card(state, card_registry, card_id, card_def)
     _resolve_on_play_abilities(state, card_registry, card_id)
 
 
@@ -894,7 +893,6 @@ def cleanup_and_pass_turn(state: GameState) -> None:
 
 
 def apply_action(state: GameState, card_registry: dict[str, CardDef], action: str, **kwargs) -> None:
-    CARD_REGISTRY_HOLDER["registry"] = card_registry
 
     if state.pending:
         _apply_pending_choice(state, card_registry, action, **kwargs)
@@ -924,4 +922,3 @@ def apply_action(state: GameState, card_registry: dict[str, CardDef], action: st
         raise ValueError(f"Unknown action: {action}")
 
 
-CARD_REGISTRY_HOLDER = {"registry": None}

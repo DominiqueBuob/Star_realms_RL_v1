@@ -518,15 +518,14 @@ def use_scrap_ability(state: GameState, card_registry: Mapping[str, CardDef], ca
     _move_to_scrap_heap(state, card_id)
     _resolve_scrap_abilities(state, card_registry, card_id)
 
-
 def _apply_pending_choice(state: GameState, card_registry: Mapping[str, CardDef], action: str, **kwargs) -> None:
     decision = state.pending[0]
-    kind = decision.payload["kind"]
 
     if action == "decline":
         if not decision.payload.get("optional", False):
             raise ValueError("This decision is not optional.")
         state.pending.pop(0)
+        _continue_after_pending_resolution(state, card_registry, decision, None)
         return
 
     if decision.decision_type == DecisionType.CHOOSE_OPTION and action == "choose_option":
@@ -542,7 +541,7 @@ def _apply_pending_choice(state: GameState, card_registry: Mapping[str, CardDef]
         if chosen_id not in decision.payload["valid_card_ids"]:
             raise ValueError("Invalid choice.")
         state.pending.pop(0)
-
+        _continue_after_pending_resolution(state, card_registry, decision, chosen_id)
         return
 
     raise ValueError("Invalid action for pending decision.")
@@ -688,21 +687,11 @@ def _handle_iterative_hand_discard_choice(state: GameState, decision: PendingDec
 
 
 def _requeue_iterative_choice(state: GameState, decision: PendingDecision, valid_now: list[int]) -> bool:
-    selected = decision.payload["selected"]
-    remaining = decision.payload["remaining"] - (1 if selected else 0)
-    already = len(selected)
-    min_cards = decision.payload["min_cards"]
-    max_cards = decision.payload["remaining"] if "remaining" in decision.payload else 0
-
-    rem = decision.payload["remaining"]
-    rem = rem - (1 if selected and len(selected) > already - 1 else 0)
-
-    next_remaining = decision.payload["remaining"] - (1 if selected else 0)
-    decision.payload["remaining"] = next_remaining
+    decision.payload["remaining"] -= 1
     decision.payload["valid_card_ids"] = list(valid_now)
-    decision.payload["optional"] = len(selected) >= min_cards
+    decision.payload["optional"] = len(decision.payload["selected"]) >= decision.payload["min_cards"]
 
-    if next_remaining > 0 and valid_now:
+    if decision.payload["remaining"] > 0 and valid_now:
         state.pending.insert(0, decision)
         return True
     return False

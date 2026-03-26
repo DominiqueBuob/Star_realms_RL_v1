@@ -121,20 +121,23 @@ def draw_cards(state: GameState, player_idx: int, amount: int) -> None:
 def _start_turn(state: GameState) -> None:
     state.turn = TurnState(phase=Phase.ACTION)
     player = current_player(state)
-    if player.forced_discards_next_turn > 0:
+
+    discard_count = min(player.forced_discards_next_turn, len(player.hand))
+    player.forced_discards_next_turn = 0
+
+    if discard_count > 0:
         state.pending.append(
             PendingDecision(
                 decision_type=DecisionType.CHOOSE_CARD,
                 player=state.active_player,
                 payload={
                     "kind": "forced_discard",
-                    "remaining": player.forced_discards_next_turn,
+                    "remaining": discard_count,
                     "valid_card_ids": list(player.hand),
                     "optional": False,
                 },
             )
         )
-        player.forced_discards_next_turn = 0
 
 
 def _apply_ship_play_passives(state: GameState, card_registry: Mapping[str, CardDef], played_ship_id: int) -> None:
@@ -387,16 +390,28 @@ def _enqueue_choose_cards_from_zone(
     source_id: int | None,
     extra: dict | None = None,
 ) -> None:
+    valid = list(zone_cards)
+
+    if not valid:
+        return
+
+    actual_min = min(min_cards, len(valid))
+    actual_max = min(max_cards, len(valid))
+
+    if actual_max <= 0:
+        return
+
     payload = {
         "kind": kind,
         "selected": [],
-        "remaining": max_cards,
-        "min_cards": min_cards,
-        "valid_card_ids": list(zone_cards),
-        "optional": min_cards == 0,
+        "remaining": actual_max,
+        "min_cards": actual_min,
+        "valid_card_ids": valid,
+        "optional": actual_min == 0,
     }
     if extra:
         payload.update(extra)
+
     state.pending.append(
         PendingDecision(
             decision_type=DecisionType.CHOOSE_CARD,
@@ -417,6 +432,16 @@ def _enqueue_choose_cards_from_multiple_zones(
     source_id: int | None,
 ) -> None:
     valid = list(zone_a) + [cid for cid in zone_b if cid not in zone_a]
+
+    if not valid:
+        return
+
+    actual_min = min(min_cards, len(valid))
+    actual_max = min(max_cards, len(valid))
+
+    if actual_max <= 0:
+        return
+
     state.pending.append(
         PendingDecision(
             decision_type=DecisionType.CHOOSE_CARD,
@@ -425,16 +450,26 @@ def _enqueue_choose_cards_from_multiple_zones(
             payload={
                 "kind": kind,
                 "selected": [],
-                "remaining": max_cards,
-                "min_cards": min_cards,
+                "remaining": actual_max,
+                "min_cards": actual_min,
                 "valid_card_ids": valid,
-                "optional": min_cards == 0,
+                "optional": actual_min == 0,
             },
         )
     )
 
-
 def _enqueue_choose_trade_row_cards(state: GameState, min_cards: int, max_cards: int, source_id: int | None) -> None:
+    valid = list(state.trade_row)
+
+    if not valid:
+        return
+
+    actual_min = min(min_cards, len(valid))
+    actual_max = min(max_cards, len(valid))
+
+    if actual_max <= 0:
+        return
+
     state.pending.append(
         PendingDecision(
             decision_type=DecisionType.CHOOSE_CARD,
@@ -443,10 +478,10 @@ def _enqueue_choose_trade_row_cards(state: GameState, min_cards: int, max_cards:
             payload={
                 "kind": "scrap_trade_row",
                 "selected": [],
-                "remaining": max_cards,
-                "min_cards": min_cards,
-                "valid_card_ids": list(state.trade_row),
-                "optional": min_cards == 0,
+                "remaining": actual_max,
+                "min_cards": actual_min,
+                "valid_card_ids": valid,
+                "optional": actual_min == 0,
             },
         )
     )
@@ -454,12 +489,21 @@ def _enqueue_choose_trade_row_cards(state: GameState, min_cards: int, max_cards:
 
 def _enqueue_choose_target_base(state: GameState, source_id: int | None, optional: bool, free_destroy: bool) -> None:
     valid = list(opponent_player(state).bases_in_play)
+
+    if not valid:
+        return
+
     state.pending.append(
         PendingDecision(
             decision_type=DecisionType.CHOOSE_TARGET,
             player=state.active_player,
             source_card_id=source_id,
-            payload={"kind": "destroy_base", "valid_card_ids": valid, "optional": optional, "free_destroy": free_destroy},
+            payload={
+                "kind": "destroy_base",
+                "valid_card_ids": valid,
+                "optional": optional,
+                "free_destroy": free_destroy,
+            },
         )
     )
 
@@ -538,8 +582,13 @@ def _apply_pending_choice(state: GameState, card_registry: Mapping[str, CardDef]
 
     if decision.decision_type in (DecisionType.CHOOSE_CARD, DecisionType.CHOOSE_TARGET) and action in ("choose_card", "choose_target"):
         chosen_id = kwargs["card_id"]
-        if chosen_id not in decision.payload["valid_card_ids"]:
+
+        current_valid = _current_valid_ids_for_decision(state, decision)
+        decision.payload["valid_card_ids"] = current_valid
+
+        if chosen_id not in current_valid:
             raise ValueError("Invalid choice.")
+
         state.pending.pop(0)
         _continue_after_pending_resolution(state, card_registry, decision, chosen_id)
         return
@@ -835,6 +884,38 @@ def cleanup_and_pass_turn(state: GameState) -> None:
     state.active_player = 1 - state.active_player
     state.turn_number += 1
     _start_turn(state)
+
+def _current_valid_ids_for_decision(state: GameState, decision: PendingDecision) -> list[int]:
+    kind = decision.payload["kind"]
+    player = current_player(state)
+
+    if kind in {
+        "scrap_hand",
+        "discard_then_draw_same_count",
+        "may_discard_then_draw",
+        "discard_up_to_then_gain_per_discard_choice",
+        "forced_discard",
+    }:
+        return list(player.hand)
+
+    if kind == "scrap_discard":
+        return list(player.discard_pile)
+
+    if kind in {"scrap_hand_or_discard", "scrap_up_to_then_draw_same_count"}:
+        return list(player.hand) + [cid for cid in player.discard_pile if cid not in player.hand]
+
+    if kind == "scrap_trade_row":
+        return list(state.trade_row)
+
+    if kind == "destroy_base":
+        return list(opponent_player(state).bases_in_play)
+
+    if kind == "acquire_free":
+        # original payload is the allowed subset by cost/type; keep only those still in trade row
+        original_valid = decision.payload.get("valid_card_ids", [])
+        return [cid for cid in original_valid if cid in state.trade_row]
+
+    return list(decision.payload.get("valid_card_ids", []))
 
 
 def apply_action(state: GameState, card_registry: Mapping[str, CardDef], action: str, **kwargs) -> None:

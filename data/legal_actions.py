@@ -3,7 +3,7 @@ from __future__ import annotations
 from data.card_defs import CardDef
 from data.enums import DecisionType, Phase, Trigger
 from data.state import GameState
-from data.rules import current_player, opponent_player, get_card_def, _effective_card_def
+from data.rules import current_player, opponent_player, get_card_def, _effective_card_def, _current_valid_ids_for_decision
 from typing import Mapping
 
 
@@ -22,7 +22,8 @@ def _pending_actions(state: GameState) -> list[dict]:
             actions.append({"type": "choose_option", "option_index": i})
 
     elif decision.decision_type in (DecisionType.CHOOSE_CARD, DecisionType.CHOOSE_TARGET):
-        for card_id in payload.get("valid_card_ids", []):
+        valid_ids = _current_valid_ids_for_decision(state, decision)
+        for card_id in valid_ids:
             actions.append({"type": "choose_card", "card_id": card_id})
         if payload.get("optional", False):
             actions.append({"type": "decline"})

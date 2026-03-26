@@ -48,6 +48,17 @@ def run_single_game(bot0_name: str, bot1_name: str, seed: int) -> int:
     while state.winner is None and state.turn_number <= max_turns:
         actions = get_legal_actions(state, CARDS)
         if not actions:
+            print("\nNo legal actions available during game.")
+            print(f"Turn: {state.turn_number}")
+            print(f"Active player: {state.active_player}")
+            print(f"Phase: {state.turn.phase}")
+            print(f"Pending: {state.pending}")
+            print(f"Trade: {state.turn.trade}, Combat: {state.turn.combat}")
+            print(f"Current hand: {state.players[state.active_player].hand}")
+            print(f"Current discard: {state.players[state.active_player].discard_pile}")
+            print(f"Current ships in play: {state.players[state.active_player].ships_in_play}")
+            print(f"Current bases in play: {state.players[state.active_player].bases_in_play}")
+            print(f"Forced discards next turn: {state.players[state.active_player].forced_discards_next_turn}")
             raise ValueError("No legal actions available during game.")
 
         # Auto-run forced cleanup if it is the only choice

@@ -11,7 +11,8 @@ from data.card_defs import CardDef
 STARTING_AUTHORITY = 50
 STARTING_SCOUTS = 8
 STARTING_VIPERS = 2
-STARTING_HAND_SIZE = 5
+FIRST_PLAYER_HAND_SIZE = 3
+SECOND_PLAYER_HAND_SIZE = 5
 TRADE_ROW_SIZE = 5
 
 
@@ -56,7 +57,14 @@ def _fill_trade_row(state: GameState) -> None:
         state.trade_row.append(state.trade_deck.pop())
 
 
-def create_game(card_registry: Mapping[str, CardDef], seed: int | None = None) -> GameState:
+def create_game(
+    card_registry: Mapping[str, CardDef],
+    seed: int | None = None,
+    starting_player: int = 0,
+) -> GameState:
+    if starting_player not in (0, 1):
+        raise ValueError("starting_player must be 0 or 1")
+
     state = GameState()
     if seed is not None:
         state.rng.seed(seed)
@@ -68,13 +76,16 @@ def create_game(card_registry: Mapping[str, CardDef], seed: int | None = None) -
 
     for player_idx in (0, 1):
         state.players[player_idx].draw_pile = _make_starting_deck(state, player_idx)
-        _draw_to_hand(state, player_idx, STARTING_HAND_SIZE)
+
+    second_player = 1 - starting_player
+    _draw_to_hand(state, starting_player, FIRST_PLAYER_HAND_SIZE)
+    _draw_to_hand(state, second_player, SECOND_PLAYER_HAND_SIZE)
 
     state.trade_deck = _build_trade_deck(state, card_registry)
     _fill_trade_row(state)
 
     state.explorer_pile_count = 10
-    state.active_player = 0
+    state.active_player = starting_player
     state.turn_number = 1
     state.turn = TurnState(phase=Phase.ACTION)
     state.pending.clear()

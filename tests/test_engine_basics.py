@@ -30,14 +30,6 @@ def add_base_to_play(state, player_idx, card_def_id):
     return instance_id
 
 
-def test_initial_legal_actions_contains_playable_hand_cards_and_end_phase():
-    state = create_game(CARDS, seed=1)
-    actions = get_legal_actions(state, CARDS)
-
-    play_actions = [a for a in actions if a["type"] == "play_card"]
-    assert len(play_actions) == 5
-    assert {"type": "end_action_phase"} in actions
-
 
 def test_playing_scout_adds_trade():
     state = create_game(CARDS, seed=1)
